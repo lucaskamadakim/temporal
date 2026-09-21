@@ -12,6 +12,7 @@ import (
 	deploymentpb "go.temporal.io/api/deployment/v1"
 	enumspb "go.temporal.io/api/enums/v1"
 	failurepb "go.temporal.io/api/failure/v1"
+	"go.temporal.io/api/serviceerror"
 	taskqueuepb "go.temporal.io/api/taskqueue/v1"
 	"go.temporal.io/api/workflowservice/v1"
 	enumsspb "go.temporal.io/server/api/enums/v1"
@@ -557,6 +558,30 @@ func (s *timerQueueActiveTaskExecutorSuite) TestProcessActivityTimeout_NoRetryPo
 
 		s.clearMutableStateFromCache(workflowKey)
 	}
+}
+
+func (s *timerQueueActiveTaskExecutorSuite) TestProcessSingleActivityTimeoutTask_RetryActivityError() {
+	ms := historyi.NewMockMutableState(s.controller)
+	ai := &persistencespb.ActivityInfo{
+		ScheduledEventId: 5,
+		Attempt:          1,
+		StartedEventId:   common.EmptyEventID,
+	}
+	retryErr := serviceerror.NewInternal("retry activity failed")
+	ms.EXPECT().RetryActivity(ai, gomock.Any()).Return(enumspb.RETRY_STATE_INTERNAL_SERVER_ERROR, retryErr)
+
+	result, err := s.timerQueueActiveTaskExecutor.processSingleActivityTimeoutTask(
+		ms,
+		workflow.TimerSequenceID{
+			EventID:   ai.ScheduledEventId,
+			TimerType: enumspb.TIMEOUT_TYPE_SCHEDULE_TO_START,
+			Attempt:   ai.Attempt,
+		},
+		ai,
+	)
+	s.ErrorIs(err, retryErr)
+	s.False(result.shouldUpdateMutableState)
+	s.False(result.shouldScheduleWorkflowTask)
 }
 
 func (s *timerQueueActiveTaskExecutorSuite) TestProcessActivityTimeout_NoRetryPolicy_Noop() {

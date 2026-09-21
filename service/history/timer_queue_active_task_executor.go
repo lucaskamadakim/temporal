@@ -308,7 +308,7 @@ func (t *timerQueueActiveTaskExecutor) processSingleActivityTimeoutTask(
 	activityAttemptStarted := ai.GetStartedEventId() != common.EmptyEventID
 	retryState, err := mutableState.RetryActivity(ai, timeoutFailure)
 	if err != nil {
-		return result, nil
+		return result, err
 	}
 
 	// Convert the timeout type to schedule to close for historical reasons, this signals that there is not enough time
