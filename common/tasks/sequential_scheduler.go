@@ -132,7 +132,7 @@ func (s *SequentialScheduler[T]) Submit(task T) {
 	// need to dispatch this task set
 	select {
 	case <-s.shutdownChan:
-		task.Abort()
+		s.removeQueue(queue)
 	case s.queueChan <- queue:
 		if s.isStopped() {
 			s.drainTasks()
@@ -194,7 +194,33 @@ func (s *SequentialScheduler[T]) TrySubmit(task T) bool {
 		}
 		return true
 	default:
-		return false
+		// The queue is already registered in s.queues but s.queueChan is full.
+		// Dispatch it asynchronously: returning false here without unregistering
+		// would leave the queue permanently undispatched, silently dropping this
+		// task and every later submission that lands on it.
+		go func() {
+			select {
+			case s.queueChan <- queue:
+				if s.isStopped() {
+					s.drainTasks()
+				}
+			case <-s.shutdownChan:
+				s.removeQueue(queue)
+			}
+		}()
+		return true
+	}
+}
+
+// removeQueue unregisters queue from s.queues and aborts all tasks it contains.
+// Tasks can only be added to queue while it is stored in s.queues, so draining
+// after removal aborts every task that was submitted to it.
+func (s *SequentialScheduler[T]) removeQueue(queue SequentialTaskQueue[T]) {
+	s.queues.RemoveIf(queue.ID(), func(key any, value any) bool {
+		return value == queue
+	})
+	for !queue.IsEmpty() {
+		queue.Remove().Abort()
 	}
 }
 
