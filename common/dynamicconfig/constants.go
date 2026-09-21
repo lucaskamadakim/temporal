@@ -1268,6 +1268,34 @@ See DynamicRateLimitingParams comments for more details.`,
 		1,
 		`MatchingMinTaskThrottlingBurstSize is the minimum burst size for task queue throttling`,
 	)
+	MatchingFairDispatchEnabled = NewNamespaceBoolSetting(
+		"matching.fairDispatchEnabled",
+		false,
+		`MatchingFairDispatchEnabled enables weighted-fair dispatch across task queue keys on a matching host.
+When false, dispatch continues to use the unsynchronized FIFO order.`,
+	)
+	MatchingFairDispatchMaxKeys = NewGlobalIntSetting(
+		"matching.fairDispatchMaxKeys",
+		10000,
+		`MatchingFairDispatchMaxKeys bounds the number of distinct dispatch keys tracked per matching host.
+New keys beyond this bound are rejected until existing keys drain or are pruned.`,
+	)
+	MatchingFairDispatchMaxDepthPerKey = NewGlobalIntSetting(
+		"matching.fairDispatchMaxDepthPerKey",
+		0,
+		`MatchingFairDispatchMaxDepthPerKey bounds queued items per dispatch key; 0 means unbounded.`,
+	)
+	MatchingFairDispatchMinWeight = NewGlobalFloatSetting(
+		"matching.fairDispatchMinWeight",
+		0.01,
+		`MatchingFairDispatchMinWeight clamps per-key dispatch weights so no key can be fully starved by configuration.`,
+	)
+	MatchingFairDispatchGateBorrowLimit = NewGlobalIntSetting(
+		"matching.fairDispatchGateBorrowLimit",
+		0,
+		`MatchingFairDispatchGateBorrowLimit is the token debt a dispatch key may run up against its quota gate
+when fair dispatch rate limiting is enabled. 0 disables overdraft.`,
+	)
 	MatchingGetTasksBatchSize = NewTaskQueueIntSetting(
 		"matching.getTasksBatchSize",
 		1000,
