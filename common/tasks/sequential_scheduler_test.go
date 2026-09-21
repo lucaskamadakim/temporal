@@ -380,6 +380,62 @@ assertionsLabel:
 		successCount, failureCount, processedCount, float64(successCount)/float64(totalTasks)*100)
 }
 
+func (s *sequentialSchedulerSuite) TestTrySubmit_FullQueueChan_StillProcesses() {
+	// Regression test: a queue registered via TrySubmit must not be orphaned
+	// when s.queueChan is full, or its task (and all later submissions to that
+	// queue) would never be processed.
+	var queueID atomic.Int64
+	scheduler := NewSequentialScheduler[*MockTask](
+		&SequentialSchedulerOptions{
+			QueueSize: 1,
+			WorkerCount: func(_ func(int)) (v int, cancel func()) {
+				return 1, func() {}
+			},
+		},
+		func(any) uint32 { return 1 },
+		func(*MockTask) SequentialTaskQueue[*MockTask] {
+			return newTestSequentialTaskQueue[*MockTask](int(queueID.Add(1)))
+		},
+		log.NewNoopLogger(),
+	)
+	scheduler.Start()
+	defer scheduler.Stop()
+
+	blocking := make(chan struct{})
+	processed := make(chan struct{}, 1)
+
+	// Occupy the only worker.
+	blockingTask := NewMockTask(s.controller)
+	blockingTask.EXPECT().RetryPolicy().Return(s.retryPolicy).AnyTimes()
+	blockingTask.EXPECT().Execute().DoAndReturn(func() error {
+		<-blocking
+		return nil
+	}).Times(1)
+	blockingTask.EXPECT().Ack().Times(1)
+	scheduler.Submit(blockingTask)
+
+	// Fill queueChan (capacity 1).
+	bufferedTask := NewMockTask(s.controller)
+	bufferedTask.EXPECT().RetryPolicy().Return(s.retryPolicy).AnyTimes()
+	bufferedTask.EXPECT().Execute().Return(nil).Times(1)
+	bufferedTask.EXPECT().Ack().Times(1)
+	scheduler.Submit(bufferedTask)
+
+	// queueChan is full: TrySubmit must still accept and eventually process the task.
+	queuedTask := NewMockTask(s.controller)
+	queuedTask.EXPECT().RetryPolicy().Return(s.retryPolicy).AnyTimes()
+	queuedTask.EXPECT().Execute().Return(nil).Times(1)
+	queuedTask.EXPECT().Ack().Do(func() { processed <- struct{}{} }).Times(1)
+	s.True(scheduler.TrySubmit(queuedTask))
+
+	close(blocking)
+	select {
+	case <-processed:
+	case <-time.After(10 * time.Second):
+		s.Fail("task submitted via TrySubmit when queueChan was full was never processed")
+	}
+}
+
 func (s *sequentialSchedulerSuite) newTestProcessor() *SequentialScheduler[*MockTask] {
 	hashFn := func(key any) uint32 {
 		return 1
