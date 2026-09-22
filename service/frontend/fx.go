@@ -18,6 +18,7 @@ import (
 	chasmworkflow "go.temporal.io/server/chasm/lib/workflow"
 	"go.temporal.io/server/client"
 	"go.temporal.io/server/common"
+	"go.temporal.io/server/common/admission"
 	"go.temporal.io/server/common/archiver"
 	"go.temporal.io/server/common/archiver/provider"
 	"go.temporal.io/server/common/authorization"
@@ -102,6 +103,7 @@ var Module = fx.Options(
 	fx.Provide(TelemetryInterceptorProvider),
 	fx.Provide(RetryableInterceptorProvider),
 	fx.Provide(RateLimitInterceptorProvider),
+	fx.Provide(AdmissionInterceptorProvider),
 	fx.Provide(interceptor.NewHealthInterceptor),
 	fx.Provide(NamespaceCountLimitInterceptorProvider),
 	fx.Provide(NamespaceValidatorInterceptorProvider),
@@ -251,6 +253,7 @@ func GrpcServerOptionsProvider(
 	rateLimitInterceptor *interceptor.RateLimitInterceptor,
 	traceStatsHandler telemetry.ServerStatsHandler,
 	metricsStatsHandler metrics.ServerStatsHandler,
+	admissionInterceptor *interceptor.AdmissionInterceptor,
 	sdkVersionInterceptor *interceptor.SDKVersionInterceptor,
 	callerInfoInterceptor *interceptor.CallerInfoInterceptor,
 	authInterceptor *authorization.Interceptor,
@@ -311,6 +314,7 @@ func GrpcServerOptionsProvider(
 		namespaceCountLimiterInterceptor.Intercept,
 		namespaceRateLimiterInterceptor.Intercept,
 		rateLimitInterceptor.Intercept,
+		admissionInterceptor.Intercept,
 		sdkVersionInterceptor.Intercept,
 		callerInfoInterceptor.Intercept,
 		slowRequestLoggerInterceptor.Intercept,
@@ -525,6 +529,46 @@ func RateLimitInterceptorProvider(
 			adminservice.AdminService_DeepHealthCheck_FullMethodName: 0, // exclude deep health check requests from rate limiting.
 		},
 	)
+}
+
+func AdmissionInterceptorProvider(
+	dc *dynamicconfig.Collection,
+	handler metrics.Handler,
+) (*interceptor.AdmissionInterceptor, error) {
+	controller, err := admission.NewController(
+		admission.Config{
+			Enabled:               dynamicconfig.EnableAdaptiveAdmissionControl.Get(dc)(),
+			Window:                dynamicconfig.AdmissionControlWindow.Get(dc)(),
+			WindowBuckets:         dynamicconfig.AdmissionControlWindowBuckets.Get(dc)(),
+			MinRequests:           int64(dynamicconfig.AdmissionControlMinRequests.Get(dc)()),
+			FailureRatioThreshold: dynamicconfig.AdmissionControlFailureRatioThreshold.Get(dc)(),
+			MinConcurrency:        dynamicconfig.AdmissionControlMinConcurrency.Get(dc)(),
+			MaxConcurrency:        dynamicconfig.AdmissionControlMaxConcurrency.Get(dc)(),
+			InitialConcurrency:    dynamicconfig.AdmissionControlInitialConcurrency.Get(dc)(),
+			Smoothing:             dynamicconfig.AdmissionControlLimiterSmoothing.Get(dc)(),
+			RTTMinMultiplier:      dynamicconfig.AdmissionControlRTTMinMultiplier.Get(dc)(),
+			BackoffRatio:          dynamicconfig.AdmissionControlBackoffRatio.Get(dc)(),
+			QueueSize:             dynamicconfig.AdmissionControlQueueSize.Get(dc)(),
+			LimiterUpdateInterval: dynamicconfig.AdmissionControlLimiterUpdateInterval.Get(dc)(),
+			MinRTTRefreshInterval: dynamicconfig.AdmissionControlMinRTTRefreshInterval.Get(dc)(),
+			LatencyEWMAAlpha:      dynamicconfig.AdmissionControlLatencyEWMAAlpha.Get(dc)(),
+			QuantileEpsilon:       dynamicconfig.AdmissionControlQuantileEpsilon.Get(dc)(),
+			MaxKeys:               dynamicconfig.AdmissionControlMaxKeys.Get(dc)(),
+		},
+		clock.NewRealTimeSource(),
+		handler,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return interceptor.NewAdmissionInterceptor(
+		controller,
+		dynamicconfig.EnableAdaptiveAdmissionControl.Get(dc),
+		map[string]int{
+			healthpb.Health_Check_FullMethodName:                     0, // health checks bypass admission control
+			adminservice.AdminService_DeepHealthCheck_FullMethodName: 0,
+		},
+	), nil
 }
 
 func ContextMetadataInterceptorProvider(

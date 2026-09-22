@@ -856,6 +856,103 @@ This config is EXPERIMENTAL and may be changed or removed in a later release.`,
 		20,
 		`FrontendThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger`,
 	)
+	EnableAdaptiveAdmissionControl = NewGlobalBoolSetting(
+		"frontend.enableAdaptiveAdmissionControl",
+		false,
+		`EnableAdaptiveAdmissionControl enables the adaptive admission control interceptor, which sheds
+requests when the observed failure ratio or concurrency limit exceeds configured thresholds. When disabled
+(the default) the interceptor passes every request through unchanged.`,
+	)
+	AdmissionControlWindow = NewGlobalDurationSetting(
+		"frontend.admissionControlWindow",
+		10*time.Second,
+		`AdmissionControlWindow is the total span of the sliding counter window used by adaptive admission
+control when computing request failure ratios.`,
+	)
+	AdmissionControlWindowBuckets = NewGlobalIntSetting(
+		"frontend.admissionControlWindowBuckets",
+		10,
+		`AdmissionControlWindowBuckets is the number of buckets the admission control window is divided into.
+More buckets give finer expiry granularity.`,
+	)
+	AdmissionControlMinRequests = NewGlobalIntSetting(
+		"frontend.admissionControlMinRequests",
+		100,
+		`AdmissionControlMinRequests is the minimum number of admitted requests that must be observed inside the
+window before the failure-ratio gate is armed. It prevents a handful of early failures from tripping the gate.`,
+	)
+	AdmissionControlFailureRatioThreshold = NewGlobalFloatSetting(
+		"frontend.admissionControlFailureRatioThreshold",
+		0.5,
+		`AdmissionControlFailureRatioThreshold is the failure ratio at which the admission controller starts
+shedding requests, computed as failures / (successes + failures) over the sliding window.`,
+	)
+	AdmissionControlMinConcurrency = NewGlobalIntSetting(
+		"frontend.admissionControlMinConcurrency",
+		4,
+		`AdmissionControlMinConcurrency is the lower bound of the adaptive in-flight limit per API partition.`,
+	)
+	AdmissionControlMaxConcurrency = NewGlobalIntSetting(
+		"frontend.admissionControlMaxConcurrency",
+		1024,
+		`AdmissionControlMaxConcurrency is the upper bound of the adaptive in-flight limit per API partition.`,
+	)
+	AdmissionControlInitialConcurrency = NewGlobalIntSetting(
+		"frontend.admissionControlInitialConcurrency",
+		32,
+		`AdmissionControlInitialConcurrency is the in-flight limit each API partition starts with.`,
+	)
+	AdmissionControlLimiterSmoothing = NewGlobalFloatSetting(
+		"frontend.admissionControlLimiterSmoothing",
+		0.2,
+		`AdmissionControlLimiterSmoothing is the EWMA weight applied to each adaptive limit update.`,
+	)
+	AdmissionControlRTTMinMultiplier = NewGlobalFloatSetting(
+		"frontend.admissionControlRTTMinMultiplier",
+		0.9,
+		`AdmissionControlRTTMinMultiplier scales the unloaded-RTT estimate inside the limit gradient. Values
+below 1 leave slack so the limiter does not react to sub-millisecond jitter.`,
+	)
+	AdmissionControlBackoffRatio = NewGlobalFloatSetting(
+		"frontend.admissionControlBackoffRatio",
+		0.9,
+		`AdmissionControlBackoffRatio multiplies the in-flight limit down on each request that completes with a
+failure outcome.`,
+	)
+	AdmissionControlQueueSize = NewGlobalFloatSetting(
+		"frontend.admissionControlQueueSize",
+		8,
+		`AdmissionControlQueueSize is the additive growth term applied to the in-flight limit per update
+interval while the service is healthy.`,
+	)
+	AdmissionControlLimiterUpdateInterval = NewGlobalDurationSetting(
+		"frontend.admissionControlLimiterUpdateInterval",
+		time.Second,
+		`AdmissionControlLimiterUpdateInterval is how often the adaptive in-flight limit is recomputed.`,
+	)
+	AdmissionControlMinRTTRefreshInterval = NewGlobalDurationSetting(
+		"frontend.admissionControlMinRTTRefreshInterval",
+		time.Minute,
+		`AdmissionControlMinRTTRefreshInterval is how often the unloaded-RTT estimate is allowed to adapt
+upward when the service has genuinely slowed.`,
+	)
+	AdmissionControlLatencyEWMAAlpha = NewGlobalFloatSetting(
+		"frontend.admissionControlLatencyEWMAAlpha",
+		0.1,
+		`AdmissionControlLatencyEWMAAlpha is the weight each new latency sample carries in the short-term
+latency estimate.`,
+	)
+	AdmissionControlQuantileEpsilon = NewGlobalFloatSetting(
+		"frontend.admissionControlQuantileEpsilon",
+		0.01,
+		`AdmissionControlQuantileEpsilon is the rank error of the quantile summary backing tail-latency stats.`,
+	)
+	AdmissionControlMaxKeys = NewGlobalIntSetting(
+		"frontend.admissionControlMaxKeys",
+		256,
+		`AdmissionControlMaxKeys bounds the number of live per-API partitions; the least recently used
+partition is evicted beyond this. Non-positive means unlimited.`,
+	)
 	FrontendShutdownDrainDuration = NewGlobalDurationSetting(
 		"frontend.shutdownDrainDuration",
 		0*time.Second,
