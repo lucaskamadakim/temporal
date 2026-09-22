@@ -149,6 +149,32 @@ func TestWeightedFairDispatcher_LateJoinerServed(t *testing.T) {
 	require.Equal(t, 5, countByKey(items)["c"])
 }
 
+func TestWeightedFairDispatcher_LateJoinerGetsNoCatchUpCredit(t *testing.T) {
+	d := newTestDispatcher(WeightedFairDispatcherConfig{})
+	for i := 0; i < 10; i++ {
+		d.Enqueue(DispatchItem{Key: "a", Value: i, Cost: 1})
+	}
+	// a drains and deactivates; dispatcher virtual time advances to 10.
+	require.Len(t, d.DispatchN(10), 10)
+
+	for i := 0; i < 5; i++ {
+		d.Enqueue(DispatchItem{Key: "a", Value: 100 + i, Cost: 1})
+		d.Enqueue(DispatchItem{Key: "b", Value: 200 + i, Cost: 1})
+	}
+	// A newly activated queue anchors its virtual start at the
+	// dispatcher virtual time: it earns no credit for service other keys
+	// consumed while it had no work.
+	stats, ok := d.Stats("b")
+	require.True(t, ok)
+	require.InDelta(t, 10.0, stats.VirtualStart, 1e-9)
+	items := d.DispatchN(10)
+	require.Len(t, items, 10)
+	// Equal weights and equal costs then alternate strictly.
+	for i := 2; i < len(items); i += 2 {
+		require.Equal(t, items[i-2].Key, items[i].Key, "position %d", i)
+	}
+}
+
 func TestWeightedFairDispatcher_GateSkipsDeniedKeys(t *testing.T) {
 	ts := clock.NewEventTimeSource()
 	gate, err := NewHierarchicalRateLimiter(HierarchicalLimiterConfig{
