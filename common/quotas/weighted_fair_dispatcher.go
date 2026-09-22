@@ -191,7 +191,7 @@ func (d *weightedFairDispatcherImpl) Enqueue(item DispatchItem) bool {
 func (d *weightedFairDispatcherImpl) activateLocked(q *dispatchQueue) {
 	d.seq++
 	q.seq = d.seq
-	q.virtualStart = math.Min(q.virtualFinish, d.virtualTime)
+	q.virtualStart = math.Max(q.virtualFinish, d.virtualTime)
 	q.virtualFinish = q.virtualStart + q.peek().Cost/q.weight
 	q.active = true
 	heap.Push(&d.heap, q)
