@@ -1227,6 +1227,17 @@ var (
 	DynamicWorkerPoolSchedulerDequeuedTasks = NewCounterDef("dynamic_worker_pool_scheduler_dequeued_tasks")
 	DynamicWorkerPoolSchedulerRejectedTasks = NewCounterDef("dynamic_worker_pool_scheduler_rejected_tasks")
 
+	// AdaptiveRateLimiter* cover the common/quotas/adaptive multi-tenant rate limiter.
+	AdaptiveRateLimiterAllowed          = NewCounterDef("adaptive_rate_limiter_allowed")
+	AdaptiveRateLimiterDenied           = NewCounterDef("adaptive_rate_limiter_denied")
+	AdaptiveRateLimiterCanceled         = NewCounterDef("adaptive_rate_limiter_canceled")
+	AdaptiveRateLimiterPartitionEvicted = NewCounterDef("adaptive_rate_limiter_partition_evicted")
+	AdaptiveRateLimiterWaitLatency      = NewTimerDef("adaptive_rate_limiter_wait_latency")
+	AdaptiveRateLimiterGrantLatency     = NewTimerDef("adaptive_rate_limiter_grant_latency")
+	AdaptiveRateLimiterRate             = NewGaugeDef("adaptive_rate_limiter_rate")
+	AdaptiveRateLimiterMultiplier       = NewGaugeDef("adaptive_rate_limiter_multiplier")
+	AdaptiveRateLimiterPartitions       = NewGaugeDef("adaptive_rate_limiter_partitions")
+
 	// ExecutionQueueScheduler metrics
 	ExecutionQueueSchedulerQueueCount     = NewGaugeDef("execution_queue_scheduler_queue_count")
 	ExecutionQueueSchedulerTasksSubmitted = NewCounterDef("execution_queue_scheduler_tasks_submitted")

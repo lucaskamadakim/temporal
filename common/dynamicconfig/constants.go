@@ -342,6 +342,39 @@ operator API calls (highest priority). Should be >0.0 and <= 1.0 (defaults to 20
 		`EnableDataLossMetrics determines whether dataloss metrics are emitted when dataloss errors are encountered`,
 	)
 
+	// adaptive rate limiter (common/quotas/adaptive)
+
+	AdaptiveRateLimiterPartitionRPS = NewGlobalFloatSetting(
+		"system.adaptiveRateLimiterPartitionRPS",
+		100.0,
+		`AdaptiveRateLimiterPartitionRPS is the base per-partition rate in tokens per second for the adaptive
+multi-tenant rate limiter, before the AIMD congestion multiplier is applied.`,
+	)
+	AdaptiveRateLimiterPartitionBurst = NewGlobalIntSetting(
+		"system.adaptiveRateLimiterPartitionBurst",
+		100,
+		`AdaptiveRateLimiterPartitionBurst is the per-partition burst capacity in tokens for the adaptive
+multi-tenant rate limiter.`,
+	)
+	AdaptiveRateLimiterMaxPartitions = NewGlobalIntSetting(
+		"system.adaptiveRateLimiterMaxPartitions",
+		1024,
+		`AdaptiveRateLimiterMaxPartitions bounds the number of live tenant partitions in the adaptive rate
+limiter. Beyond the bound the least recently used partition is evicted.`,
+	)
+	AdaptiveRateLimiterPartitionIdleTTL = NewGlobalDurationSetting(
+		"system.adaptiveRateLimiterPartitionIdleTTL",
+		10*time.Minute,
+		`AdaptiveRateLimiterPartitionIdleTTL is how long a rate limiter partition may stay idle before it is
+evicted. Pending reservations of an evicted partition are canceled.`,
+	)
+	AdaptiveRateLimiterMaxWait = NewGlobalDurationSetting(
+		"system.adaptiveRateLimiterMaxWait",
+		30*time.Second,
+		`AdaptiveRateLimiterMaxWait is the furthest into the future a reservation may be scheduled before the
+adaptive rate limiter denies the request instead of queueing it.`,
+	)
+
 	// deadlock detector
 
 	DeadlockDumpGoroutines = NewGlobalBoolSetting(
