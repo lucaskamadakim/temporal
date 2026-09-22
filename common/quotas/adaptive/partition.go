@@ -1,7 +1,9 @@
 package adaptive
 
 import (
+	"cmp"
 	"container/heap"
+	"slices"
 	"time"
 
 	"go.temporal.io/server/common/clock"
@@ -136,17 +138,25 @@ func (p *partition) retimeline(now time.Time) {
 	if repaid := p.bucket.tokensAt(now) + committed; repaid > 0 && p.bucket.rate > 0 {
 		cursor = now.Add(-delayFromDeficit(repaid, p.bucket.rate))
 	}
-	// Recompute each reservation's grant time in place and re-establish the
-	// heap invariant with heap.Fix as grant times move.
-	for _, r := range p.pending {
+	// Recompute each reservation's grant time in grant order; the heap's
+	// backing array is only partially ordered, so iterating it directly would
+	// assign earlier slots to reservations that grant later.
+	ordered := slices.Clone(p.pending)
+	slices.SortFunc(ordered, func(a, b *reservation) int {
+		if a.grantAt.Equal(b.grantAt) {
+			return cmp.Compare(a.seq, b.seq)
+		}
+		return a.grantAt.Compare(b.grantAt)
+	})
+	for _, r := range ordered {
 		grantAt := cursor.Add(delayFor(r.tokens, p.bucket.rate, r.weight))
 		if grantAt.Before(now) {
 			grantAt = now
 		}
 		r.grantAt = grantAt
 		cursor = grantAt
-		heap.Fix(&p.pending, r.heapIndex)
 	}
+	heap.Init(&p.pending)
 	p.grantDue(now)
 	p.rearm(now)
 }

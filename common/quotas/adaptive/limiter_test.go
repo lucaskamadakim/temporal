@@ -317,6 +317,30 @@ func TestReportSignalGrowsRate(t *testing.T) {
 	require.Equal(t, 1200*time.Millisecond, r1.DelayFrom(ts.Now()))
 }
 
+func TestReportSignalPreservesGrantOrderAcrossPriorities(t *testing.T) {
+	t.Parallel()
+
+	l, ts := newTestLimiter(t)
+	require.True(t, l.AllowN("ns", 10)) // drain
+
+	// r2 has the lowest priority so it grants last even though it was reserved
+	// before r3; grant order is r1, r3, r2.
+	r1 := l.ReserveN("ns", 10, 0) // weight 1.0: +1s
+	r2 := l.ReserveN("ns", 10, 2) // weight 0.25: deficit 20 -> +8s
+	r3 := l.ReserveN("ns", 5, 0)  // weight 1.0: deficit 25 -> +2.5s
+
+	require.Equal(t, time.Second, r1.DelayFrom(ts.Now()))
+	require.Equal(t, 8*time.Second, r2.DelayFrom(ts.Now()))
+	require.Equal(t, 2500*time.Millisecond, r3.DelayFrom(ts.Now()))
+
+	// beta 0.5 halves the effective rate; re-timelining must keep the original
+	// grant order.
+	l.ReportSignal(0.9)
+	require.Equal(t, 2*time.Second, r1.DelayFrom(ts.Now()))
+	require.Equal(t, 3*time.Second, r3.DelayFrom(ts.Now()))
+	require.Equal(t, 11*time.Second, r2.DelayFrom(ts.Now()))
+}
+
 func TestReportSignalDeadBandKeepsSchedule(t *testing.T) {
 	t.Parallel()
 
